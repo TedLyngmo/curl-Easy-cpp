@@ -1,0 +1,170 @@
+#include "curl/curl.h"
+#include <stdexcept>
+#include <utility>
+
+namespace curl {
+// A simple wrapper class for the easy_curl functions in libcurl
+class Easy {
+public:
+    // default constructor
+    Easy() : handle(curl_easy_init()) {
+        if(handle == nullptr)
+            throw std::runtime_error(
+                "curl::Easy default construction: curl_easy_init failed");
+
+        // Set "this" as data pointer in callbacks to be able to make a call to the
+        // correct Easy object. There are a lot more callback functions you
+        // could add here if you need them.
+        setopt(CURLOPT_WRITEDATA, this);
+        setopt(CURLOPT_DEBUGDATA, this);
+        setopt(CURLOPT_XFERINFODATA, this);
+
+        // Setup of proxy/callback functions. There should be one for each function
+        // above.
+        setopt(CURLOPT_WRITEFUNCTION, write_callback);
+        setopt(CURLOPT_DEBUGFUNCTION, debug_callback);
+        setopt(CURLOPT_XFERINFOFUNCTION, progress_callback);
+
+        // some default options, remove those you usually don't want
+        setopt(CURLOPT_NOPROGRESS, 0);       // turn on progress callbacks
+        setopt(CURLOPT_FOLLOWLOCATION, 1L);  // redirects
+        setopt(CURLOPT_HTTPPROXYTUNNEL, 1L); // corp. proxies etc.
+        // setopt(CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+        setopt(CURLOPT_VERBOSE, 1L); // we want it all
+    }
+    // copy constructor
+    Easy(const Easy& other) : handle(curl_easy_duphandle(other.handle)) {
+        if(handle == nullptr)
+            throw std::runtime_error(
+                "curl::Easy copy construction: curl_easy_duphandle failed");
+        // State information is not shared when using curl_easy_duphandle. Only the
+        // options you've set (so you can create one CURL object, set its options and
+        // then use as a template for other objects. The document and debug data are
+        // therefor also not copied.
+    }
+    // move constructor
+    Easy(Easy&& other) : handle(std::exchange(other.handle, nullptr)) {}
+    // copy assignment
+    Easy& operator=(const Easy& other) {
+        CURL* tmp_handle = curl_easy_duphandle(other.handle);
+        if(handle == nullptr)
+            throw std::runtime_error(
+                "curl::Easy copy assignment: curl_easy_duphandle failed");
+        // dup succeeded, now destroy any handle we might have and copy the tmp
+        curl_easy_cleanup(handle);
+        handle = tmp_handle;
+        return *this;
+    }
+    // move assignment
+    Easy& operator=(Easy&& other) {
+        std::swap(handle, other.handle);
+        return *this;
+    }
+    virtual ~Easy() { curl_easy_cleanup(handle); }
+
+    // To be able to use an instance of Easy with C interfaces if you don't add
+    // a function to this class for it, this operator will help
+    operator CURL*() { return handle; }
+
+    // generic curl_easy_setopt wrapper
+    template<typename T>
+    CURLcode setopt(CURLoption option, T v) {
+        return curl_easy_setopt(handle, option, v);
+    }
+
+    // perform by supplying url
+    CURLcode perform_url(std::string_view url) {
+        setopt(CURLOPT_URL, url.data());
+        return perform();
+    }
+
+    // perform with a previously supplied url
+    // override this to make preparations before actually doing the work
+    virtual CURLcode perform() { return curl_easy_perform(handle); }
+
+    // callbacks from proxy functions, override to capture data etc.
+    virtual size_t on_write(char* /*ptr*/, size_t total_size) { return total_size; }
+    virtual int on_debug(curl_infotype /*type*/, char* /*data*/, size_t /*size*/) {
+        return 0; // must return 0
+    }
+    virtual int on_progress(curl_off_t /*dltotal*/, curl_off_t /*dlnow*/,
+                            curl_off_t /*ultotal*/, curl_off_t /*ulnow*/) {
+        return 0;
+    }
+
+private:
+    // a private class to initialize and cleanup curl once
+    class GlobalInit {
+    public:
+        GlobalInit() {
+            CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
+            if(res)
+                throw std::runtime_error(
+                    "curl::GlobalInit: curl_global_init failed");
+        }
+        ~GlobalInit() { curl_global_cleanup(); }
+    };
+
+    // callback functions - has to be static to work with the C interface in curl
+    // use the data pointer (this) that we set in the constructor and cast it back
+    // to a Easy* and call the event handler in the correct object.
+    static size_t write_callback(char* ptr, size_t size, size_t nmemb,
+                                 void* userdata) {
+        Easy* ecurly = static_cast<Easy*>(userdata);
+        return ecurly->on_write(ptr, nmemb * size); // size==1 really
+    }
+    static int debug_callback(CURL* /*handle*/, curl_infotype type, char* data,
+                              size_t size, void* userptr) {
+        Easy* ecurly = static_cast<Easy*>(userptr);
+        return ecurly->on_debug(type, data, size);
+    }
+    static int progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow,
+                                 curl_off_t ultotal, curl_off_t ulnow) {
+        Easy* ecurly = static_cast<Easy*>(clientp);
+        return ecurly->on_progress(dltotal, dlnow, ultotal, ulnow);
+    }
+
+    // resources
+    CURL* handle;
+
+    // a static initializer object
+    static GlobalInit setup_and_teardown;
+};
+
+Easy::GlobalInit Easy::setup_and_teardown{};
+//-----------------------------------------------------------------------------
+
+// A fully functional extension to curl::Easy
+class EasyCollector : public curl::Easy {
+public:
+    // collected data getters
+    std::string const& document() const { return m_document; }
+    std::string const& debug() const { return m_debug; }
+
+    CURLcode perform() override {
+        m_document.clear();
+        m_debug.clear();
+        return Easy::perform();
+    }
+    size_t on_write(char* ptr, size_t total_size) override {
+        // store document data
+        m_document.insert(m_document.end(), ptr, ptr + total_size);
+        return total_size;
+    }
+    int on_debug(curl_infotype /*type*/, char* data, size_t size) override {
+        // store debug data
+        m_debug.insert(m_debug.end(), data, data + size);
+        return 0; // must return 0
+    }
+    int on_progress(curl_off_t /*dltotal*/, curl_off_t /*dlnow*/,
+                    curl_off_t /*ultotal*/, curl_off_t /*ulnow*/) override {
+        // progress bar goes here
+        return 0;
+    }
+
+private:
+    std::string m_document{};
+    std::string m_debug{};
+};
+
+} // namespace curl
