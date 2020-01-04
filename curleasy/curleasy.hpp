@@ -2,8 +2,8 @@
 #define CURL_EASY_HPP
 
 #include "curl/curl.h"
-#include <string_view>
 #include <string>
+#include <string_view>
 
 /*
 ** curl::Easy++
@@ -74,8 +74,9 @@ public:
     CURLcode perform() override;
     size_t on_write(char* ptr, size_t total_size) override;
     int on_debug(curl_infotype type, char* data, size_t size) override;
-    int on_progress(curl_off_t dltotal, curl_off_t dlnow,
-                    curl_off_t ultotal, curl_off_t ulnow) override;
+    int on_progress(curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal,
+                    curl_off_t ulnow) override;
+
 private:
     std::string m_document{};
     std::string m_debug{};
