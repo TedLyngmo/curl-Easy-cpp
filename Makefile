@@ -11,15 +11,17 @@ INCLUDES =
 LIBS = -lcurl -Lcurleasy -lcurleasy
 STD = c++17
 
-example : example.o curleasy/libcurleasy.a
+example : example.o curleasy/libcurleasy.a Makefile
 	$(CXX) -DNDEBUG $(INCLUDES) -std=$(STD) -O3 $(WARNINGS) -o $@ $< $(LIBS)
 
-curleasy/curleasy.o : curleasy/curleasy.cpp curleasy/curleasy.hpp
+curleasy/curleasy.o : curleasy/curleasy.cpp curleasy/curleasy.hpp Makefile
 	$(CXX) -DNDEBUG $(INCLUDES) -std=$(STD) -O3 $(WARNINGS) -c -o $@ $<
 
-curleasy/libcurleasy.a : curleasy/curleasy.o
+curleasy/libcurleasy.a : curleasy/curleasy.o Makefile
 	ar rvs $@ $<
 
 %.o : %.cpp
 	$(CXX) -DNDEBUG $(INCLUDES) -std=$(STD) -O3 $(WARNINGS) -c -o $@ $<
 
+clean:
+	rm -f curleasy/curleasy.o curleasy/libcurleasy.a

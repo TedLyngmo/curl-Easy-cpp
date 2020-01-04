@@ -1,9 +1,16 @@
-# curl::Easy++  (under construction - not ready for use yet)
+# curl::Easy++
 
 curl::Easy++ is set of C++ classes for [libcurl](https://github.com/curl/curl). The foundation class, `curl::Easy`, can be used as a base class for your own implementations and also serves as a base class for the other classes in curl::Easy++, such as `curl::EasyCollector` which can be used to fetch a document into a `std::string` straight out of the box.
 
+# Building
+```sh
+% make
+```
+This will create `libcurleasy.a` and an application called `example`. When linking your own programs you need to link with both `-lcurl` and `-lcurleasy`.
+
 # Interface
 ```cpp
+namespace curl {
 class Easy {
 public:
     Easy();
@@ -33,6 +40,7 @@ public:
     virtual int on_progress(curl_off_t dltotal, curl_off_t dlnow,
                             curl_off_t ultotal, curl_off_t ulnow);
 };
+}
 ```
 
 # Example
