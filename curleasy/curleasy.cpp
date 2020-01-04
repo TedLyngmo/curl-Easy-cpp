@@ -1,10 +1,9 @@
-#include "easycurl/easycurl.hpp"
+#include "curleasy.hpp"
 #include <stdexcept>
 #include <utility>
 
 namespace curl {
 
-//public:
     // default constructor
     Easy::Easy() : handle(curl_easy_init()) {
         if(handle == nullptr)
@@ -44,7 +43,7 @@ namespace curl {
     // move constructor
     Easy::Easy(Easy&& other) : handle(std::exchange(other.handle, nullptr)) {}
     // copy assignment
-    Easy::Easy& operator=(const Easy& other) {
+    Easy& Easy::operator=(const Easy& other) {
         CURL* tmp_handle = curl_easy_duphandle(other.handle);
         if(handle == nullptr)
             throw std::runtime_error(
@@ -55,11 +54,11 @@ namespace curl {
         return *this;
     }
     // move assignment
-    Easy::Easy& operator=(Easy&& other) {
+    Easy& Easy::operator=(Easy&& other) {
         std::swap(handle, other.handle);
         return *this;
     }
-    virtual ~Easy::Easy() { curl_easy_cleanup(handle); }
+    Easy::~Easy() { curl_easy_cleanup(handle); }
 
     // To be able to use an instance of Easy with C interfaces if you don't add
     // a function to this class for it, this operator will help
@@ -73,14 +72,14 @@ namespace curl {
 
     // perform with a previously supplied url
     // override this to make preparations before actually doing the work
-    virtual CURLcode Easy::perform() { return curl_easy_perform(handle); }
+    CURLcode Easy::perform() { return curl_easy_perform(handle); }
 
     // callbacks from proxy functions, override to capture data etc.
-    virtual size_t Easy::on_write(char* /*ptr*/, size_t total_size) { return total_size; }
-    virtual int Easy::on_debug(curl_infotype /*type*/, char* /*data*/, size_t /*size*/) {
+    size_t Easy::on_write(char* /*ptr*/, size_t total_size) { return total_size; }
+    int Easy::on_debug(curl_infotype /*type*/, char* /*data*/, size_t /*size*/) {
         return 0; // must return 0
     }
-    virtual int Easy::on_progress(curl_off_t /*dltotal*/, curl_off_t /*dlnow*/,
+    int Easy::on_progress(curl_off_t /*dltotal*/, curl_off_t /*dlnow*/,
                             curl_off_t /*ultotal*/, curl_off_t /*ulnow*/) {
         return 0;
     }
@@ -101,17 +100,17 @@ namespace curl {
     // callback functions - has to be static to work with the C interface in curl
     // use the data pointer (this) that we set in the constructor and cast it back
     // to a Easy* and call the event handler in the correct object.
-    static size_t Easy::write_callback(char* ptr, size_t size, size_t nmemb,
+    size_t Easy::write_callback(char* ptr, size_t size, size_t nmemb,
                                  void* userdata) {
         Easy* ecurly = static_cast<Easy*>(userdata);
         return ecurly->on_write(ptr, nmemb * size); // size==1 really
     }
-    static int Easy::debug_callback(CURL* /*handle*/, curl_infotype type, char* data,
+    int Easy::debug_callback(CURL* /*handle*/, curl_infotype type, char* data,
                               size_t size, void* userptr) {
         Easy* ecurly = static_cast<Easy*>(userptr);
         return ecurly->on_debug(type, data, size);
     }
-    static int Easy::progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow,
+    int Easy::progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow,
                                  curl_off_t ultotal, curl_off_t ulnow) {
         Easy* ecurly = static_cast<Easy*>(clientp);
         return ecurly->on_progress(dltotal, dlnow, ultotal, ulnow);
@@ -121,36 +120,29 @@ Easy::GlobalInit Easy::setup_and_teardown{};
 //-----------------------------------------------------------------------------
 
 // A fully functional extension to curl::Easy
-class EasyCollector : public curl::Easy {
-public:
     // collected data getters
-    std::string const& document() const { return m_document; }
-    std::string const& debug() const { return m_debug; }
+    std::string const& EasyCollector::document() const { return m_document; }
+    std::string const& EasyCollector::debug() const { return m_debug; }
 
-    CURLcode perform() override {
+    CURLcode EasyCollector::perform() {
         m_document.clear();
         m_debug.clear();
         return Easy::perform();
     }
-    size_t on_write(char* ptr, size_t total_size) override {
+    size_t EasyCollector::on_write(char* ptr, size_t total_size) {
         // store document data
         m_document.insert(m_document.end(), ptr, ptr + total_size);
         return total_size;
     }
-    int on_debug(curl_infotype /*type*/, char* data, size_t size) override {
+    int EasyCollector::on_debug(curl_infotype /*type*/, char* data, size_t size) {
         // store debug data
         m_debug.insert(m_debug.end(), data, data + size);
         return 0; // must return 0
     }
-    int on_progress(curl_off_t /*dltotal*/, curl_off_t /*dlnow*/,
-                    curl_off_t /*ultotal*/, curl_off_t /*ulnow*/) override {
+    int EasyCollector::on_progress(curl_off_t /*dltotal*/, curl_off_t /*dlnow*/,
+                    curl_off_t /*ultotal*/, curl_off_t /*ulnow*/) {
         // progress bar goes here
         return 0;
     }
-
-private:
-    std::string m_document{};
-    std::string m_debug{};
-};
 
 } // namespace curl

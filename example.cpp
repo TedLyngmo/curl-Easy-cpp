@@ -1,4 +1,4 @@
-#include "include/curleasy.hpp"
+#include "curleasy/curleasy.hpp"
 #include <iostream>
 
 int main() {
