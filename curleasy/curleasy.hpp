@@ -2,8 +2,11 @@
 #define CURL_EASY_HPP
 
 #include "curl/curl.h"
+
 #include <string>
+#if __cplusplus > 201703L
 #include <string_view>
+#endif
 
 /*
 ** curl::Easy++
@@ -15,14 +18,14 @@ class Easy {
 public:
     Easy();
     Easy(const Easy& other);
-    Easy(Easy&& other);
+    Easy(Easy&& other) noexcept;
     Easy& operator=(const Easy& other);
-    Easy& operator=(Easy&& other);
+    Easy& operator=(Easy&& other) noexcept;
     virtual ~Easy();
 
     // To be able to use an instance of curl::Easy with C interfaces not
     // covered by curl::Easy++, this conversion operator will help
-    inline operator CURL*();
+    inline explicit operator CURL*();
 
     // A generic curl_easy_setopt wrapper
     template<typename T>
@@ -31,7 +34,11 @@ public:
     }
 
     // perform by supplying url
+#if __cplusplus >= 201703L
     CURLcode perform_url(std::string_view url);
+#else
+    CURLcode perform_url(const std::string& url);
+#endif
 
     // perform with a previously supplied url (via setopt or perform_url)
     // override this to make preparations before actually doing the work
@@ -44,9 +51,6 @@ public:
                             curl_off_t ulnow);
 
 private:
-    // a private class to initialize and cleanup curl once
-    class GlobalInit;
-
     // callback functions - has to be static to work with the C interface in curl
     // use the data pointer (this) that we set in the constructor and cast it back
     // to a Easy* and call the event handler in the correct object.
@@ -59,6 +63,9 @@ private:
 
     // resources
     CURL* handle;
+
+    // a private class to initialize and cleanup curl once
+    class GlobalInit;
 
     // a static initializer object
     static GlobalInit setup_and_teardown;

@@ -2,26 +2,27 @@ CXX = g++
 
 CLANGTIDY = -checks=*,clang-analyzer-*,-clang-analyzer-cplusplus*
 
-#CLANGWARNINGS=-Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-missing-prototypes -pedantic -pedantic-errors
-WARNINGS=-Wall -Wextra -Wshadow -Wconversion -Wsign-conversion -Woverloaded-virtual -Wold-style-cast -Weffc++ -pedantic -pedantic-errors
+#WARNINGS=-Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-missing-prototypes -pedantic -pedantic-errors
+WARNINGS=-Wall -Wextra -Weffc++ -Werror -Wshadow -Wconversion -Wsign-conversion -Woverloaded-virtual -Wold-style-cast -pedantic -pedantic-errors
 GCCSPECIFIC=-fopt-info
 #-fcheck-pointer-bounds
 
 INCLUDES =
 LIBS = -lcurl -Lcurleasy -lcurleasy
-STD = c++17
+STD = -std=c++17
+
+COMN = $(CXX)
+COMP = $(COMN) $(STD) -DNDEBUG -O3 $(WARNINGS) $(INCLUDES) -c -o $@ $<
+LINK = $(COMN) -o $@ $< $(LIBS)
 
 example : example.o curleasy/libcurleasy.a Makefile
-	$(CXX) -DNDEBUG $(INCLUDES) -std=$(STD) -O3 $(WARNINGS) -o $@ $< $(LIBS)
-
-curleasy/curleasy.o : curleasy/curleasy.cpp curleasy/curleasy.hpp Makefile
-	$(CXX) -DNDEBUG $(INCLUDES) -std=$(STD) -O3 $(WARNINGS) -c -o $@ $<
+	$(LINK)
 
 curleasy/libcurleasy.a : curleasy/curleasy.o Makefile
 	ar rvs $@ $<
 
-%.o : %.cpp
-	$(CXX) -DNDEBUG $(INCLUDES) -std=$(STD) -O3 $(WARNINGS) -c -o $@ $<
+%.o : %.cpp Makefile
+	$(COMP)
 
 clean:
-	rm -f curleasy/curleasy.o curleasy/libcurleasy.a
+	rm -f example example.o curleasy/curleasy.o curleasy/libcurleasy.a

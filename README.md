@@ -15,20 +15,24 @@ class Easy {
 public:
     Easy();
     Easy(const Easy& other);
-    Easy(Easy&& other);
+    Easy(Easy&& other) noexcept;
     Easy& operator=(const Easy& other);
-    Easy& operator=(Easy&& other);
+    Easy& operator=(Easy&& other) noexcept;
     virtual ~Easy();
 
     // To be able to use an instance of curl::Easy with C interfaces not
     // covered by curl::Easy++, this conversion operator will help
-    inline operator CURL*() { return handle; }
+    inline explicit operator CURL*();
 
-    // set options supported by curl_easy_setopt()
-    CURLcode setopt(CURLoption option, parameter);
+    // A generic curl_easy_setopt wrapper
+    template<typename T>
+    inline CURLcode setopt(CURLoption option, T v) {
+        return curl_easy_setopt(handle, option, v);
+    }
 
-    // perform by supplying a url
-    CURLcode perform_url(std::string_view url);
+    // perform by supplying url
+    CURLcode perform_url(std::string_view url);    // >= C++17
+    CURLcode perform_url(const std::string& url);  // < C++17
 
     // perform with a previously supplied url (via setopt or perform_url)
     // override this to make preparations before actually doing the work
@@ -40,24 +44,31 @@ public:
     virtual int on_progress(curl_off_t dltotal, curl_off_t dlnow,
                             curl_off_t ultotal, curl_off_t ulnow);
 };
-}
+}  // namespace curl
 ```
 
 # Example
 ```cpp
 #include "curleasy/curleasy.hpp"
+
 #include <iostream>
 
 int main() {
-    curl::EasyCollector ecurl; // there's no need to initialize libcurl
+    constexpr auto width = 80;
+    curl::EasyCollector ecurl; // our curl object
 
-    CURLcode res = ecurl.perform_url("http://www.google.com/");
-    std::cout << "result: " << res << "\n";
+    CURLcode res = ecurl.perform_url("https://lyncon.se/curl-Easy-cpp.txt");
 
-    std::cout << "--- document size " << ecurl.document().size() << " captured ---\n"
-              << ecurl.document() << "---------\n\n";
-    std::cout << "--- debug size " << ecurl.debug().size() << " captured ---\n"
-              << ecurl.debug() << "---------\n";
+    std::cout
+        << std::string(width, '-') << "\n"
+        << "Result       : " << res << "\n"
+        << "Document size: " << ecurl.document().size() << "\n"
+        << "Debug size   : " << ecurl.debug().size() << "\n";
+
+    std::cout
+        << std::string(width, '-') << "\n"
+        << ecurl.document()                 // print the captured document
+        << std::string(width, '-') << "\n";
 }
 ```
 # Extending

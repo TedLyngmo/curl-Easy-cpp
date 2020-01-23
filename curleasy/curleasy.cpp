@@ -3,12 +3,30 @@
 #include <utility>
 
 namespace curl {
+namespace detail {
 
+#if __cplusplus >= 201402L
+    using std::exchange;
+#else
+template<class T, class U = T>
+T exchange(T& obj, U&& new_value)
+{
+    T old_value = std::move(obj);
+    obj = std::forward<U>(new_value);
+    return old_value;
+}
+#endif
+
+}  // namespace detail
+}  // namespace curl
+
+namespace curl {
 // default constructor
 Easy::Easy() : handle(curl_easy_init()) {
-    if(handle == nullptr)
+    if(handle == nullptr) {
         throw std::runtime_error(
             "curl::Easy default construction: curl_easy_init failed");
+    }
 
     // Set "this" as data pointer in callbacks to be able to make a call to the
     // correct Easy object. There are a lot more callback functions you
@@ -24,7 +42,7 @@ Easy::Easy() : handle(curl_easy_init()) {
     setopt(CURLOPT_XFERINFOFUNCTION, progress_callback);
 
     // some default options, remove those you usually don't want
-    setopt(CURLOPT_NOPROGRESS, 0);       // turn on progress callbacks
+    setopt(CURLOPT_NOPROGRESS, 0L);      // turn on progress callbacks
     setopt(CURLOPT_FOLLOWLOCATION, 1L);  // redirects
     setopt(CURLOPT_HTTPPROXYTUNNEL, 1L); // corp. proxies etc.
     // setopt(CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
@@ -32,29 +50,31 @@ Easy::Easy() : handle(curl_easy_init()) {
 }
 // copy constructor
 Easy::Easy(const Easy& other) : handle(curl_easy_duphandle(other.handle)) {
-    if(handle == nullptr)
+    if(handle == nullptr) {
         throw std::runtime_error(
             "curl::Easy copy construction: curl_easy_duphandle failed");
+    }
     // State information is not shared when using curl_easy_duphandle. Only the
     // options you've set (so you can create one CURL object, set its options and
     // then use as a template for other objects. The document and debug data are
     // therefor also not copied.
 }
 // move constructor
-Easy::Easy(Easy&& other) : handle(std::exchange(other.handle, nullptr)) {}
+Easy::Easy(Easy&& other) noexcept : handle(detail::exchange(other.handle, nullptr)) {}
 // copy assignment
 Easy& Easy::operator=(const Easy& other) {
     CURL* tmp_handle = curl_easy_duphandle(other.handle);
-    if(handle == nullptr)
+    if(tmp_handle == nullptr) {
         throw std::runtime_error(
             "curl::Easy copy assignment: curl_easy_duphandle failed");
+    }
     // dup succeeded, now destroy any handle we might have and copy the tmp
     curl_easy_cleanup(handle);
     handle = tmp_handle;
     return *this;
 }
 // move assignment
-Easy& Easy::operator=(Easy&& other) {
+Easy& Easy::operator=(Easy&& other) noexcept {
     std::swap(handle, other.handle);
     return *this;
 }
@@ -69,10 +89,17 @@ Easy::operator CURL*() {
 }
 
 // perform by supplying url
+#if __cplusplus >= 201703L
 CURLcode Easy::perform_url(std::string_view url) {
     setopt(CURLOPT_URL, url.data());
     return perform();
 }
+#else
+CURLcode Easy::perform_url(const std::string& url) {
+    setopt(CURLOPT_URL, url.c_str());
+    return perform();
+}
+#endif
 
 // perform with a previously supplied url
 // override this to make preparations before actually doing the work
@@ -93,16 +120,25 @@ int Easy::on_progress(curl_off_t /*dltotal*/, curl_off_t /*dlnow*/,
 }
 
 // private:
+
 // a private class to initialize and cleanup curl once
 class Easy::GlobalInit {
 public:
-    GlobalInit() {
-        CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
-        if(res)
-            throw std::runtime_error("curl::GlobalInit: curl_global_init failed");
-    }
-    ~GlobalInit() { curl_global_cleanup(); }
+    GlobalInit() noexcept :
+        initialized(curl_global_init(CURL_GLOBAL_DEFAULT)==0U)
+    {}
+    GlobalInit(const GlobalInit&) = delete;
+    GlobalInit(GlobalInit&&) = delete;
+    GlobalInit& operator=(const GlobalInit&) = delete;
+    GlobalInit& operator=(GlobalInit&&) = delete;
+    ~GlobalInit() { if(initialized) { curl_global_cleanup(); } }
+
+    explicit operator bool () const { return initialized; }
+private:
+    bool initialized;
 };
+
+Easy::GlobalInit Easy::setup_and_teardown{};
 
 // callback functions - has to be static to work with the C interface in curl
 // use the data pointer (this) that we set in the constructor and cast it back
@@ -121,8 +157,6 @@ int Easy::progress_callback(void* clientp, curl_off_t dltotal, curl_off_t dlnow,
     Easy* ecurly = static_cast<Easy*>(clientp);
     return ecurly->on_progress(dltotal, dlnow, ultotal, ulnow);
 }
-
-Easy::GlobalInit Easy::setup_and_teardown{};
 //-----------------------------------------------------------------------------
 
 // A fully functional extension to curl::Easy
