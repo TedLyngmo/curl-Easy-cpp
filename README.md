@@ -3,10 +3,22 @@
 curl::Easy++ is set of C++ classes for [libcurl](https://github.com/curl/curl). The foundation class, `curl::Easy`, can be used as a base class for your own implementations and also serves as a base class for the other classes in curl::Easy++, such as `curl::EasyCollector` which can be used to fetch a document into a `std::string` straight out of the box.
 
 # Building
+A `build` directory is already created so:
 ```sh
-% make
+% cmake --build build
 ```
 This will create `libcurleasy.a` and an application called `example`. When linking your own programs you need to link with both `-lcurl` and `-lcurleasy`.
+
+You can then run the demo program that fetches a document from my server. If everything is working, you'll get a nice greeting.
+```
+% build/demo/example
+```
+# Installing
+This will create the directories `include/curleasy` and `lib` under the path you supply with `--prefix`.
+```
+% cmake --install build --prefix /usr/local
+```
+
 
 # Interface
 ```cpp

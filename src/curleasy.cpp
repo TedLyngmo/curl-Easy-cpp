@@ -1,4 +1,4 @@
-#include "curleasy.hpp"
+#include "curleasy/curleasy.hpp"
 #include <stdexcept>
 #include <utility>
 
