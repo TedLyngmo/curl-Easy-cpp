@@ -7,7 +7,7 @@ A `build` directory is already created so:
 ```sh
 % cmake --build build
 ```
-This will create `libcurleasy.a` and an application called `example`. When linking your own programs you need to link with both `-lcurl` and `-lcurleasy`.
+This will create `libcurleasy.a` and an application called `example`. When linking your own programs you need to link with both `curleasy` and `curl`.
 
 You can then run the demo program that fetches a document from my server. If everything is working, you'll get a nice greeting.
 ```

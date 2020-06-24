@@ -1,7 +1,8 @@
 add_library(curleasy curleasy.cpp)
 set_target_properties(curleasy PROPERTIES PUBLIC_HEADER "${PROJECT_SOURCE_DIR}/include/curleasy/curleasy.hpp")
 target_include_directories(curleasy PUBLIC "${PROJECT_SOURCE_DIR}/include")
-target_link_libraries(curleasy curl)
+find_library(LIBCURL curl)
+target_link_libraries(curleasy ${LIBCURL})
 
 INSTALL(TARGETS curleasy
         LIBRARY DESTINATION lib
