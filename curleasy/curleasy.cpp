@@ -175,7 +175,7 @@ CURLcode EasyCollector::perform() {
 }
 size_t EasyCollector::on_write(char* ptr, size_t total_size) {
     // store document data
-    m_document.insert(m_document.end(), ptr, ptr + total_size);
+    m_document.append(ptr, ptr + total_size);
     return total_size;
 }
 int EasyCollector::on_debug(curl_infotype /*type*/, char* data, size_t size) {
