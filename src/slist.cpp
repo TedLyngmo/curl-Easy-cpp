@@ -1,28 +1,29 @@
-#include "slist.hpp"
+#include "curleasy/slist.hpp"
+
+#include <utility>
 
 namespace curl {
 
-SList::SList() : list{nullptr} {}
-SList::SList(SList&&) noexcept
+Slist::Slist(Slist&& rhs) noexcept : m_slist(std::exchange(rhs.m_slist, nullptr)) {}
 
-{
-}
-SList& SList::operator=(SList&&) noexcept {
+Slist& Slist::operator=(Slist&& rhs) noexcept {
+    std::swap(m_slist, rhs.m_slist);
     return *this;
 }
-SList::~SList() {
+
+Slist::~Slist() {
+    if(m_slist) curl_slist_free_all(m_slist);
 }
 
-#if __cplusplus >= 201703L
-    void append(std::string_view str);
-#else
-    void append(const std::string& str);
-#endif
+bool Slist::append(const char* str) {
+    auto nl = curl_slist_append(m_slist, str);
+    if(nl == nullptr) return false;
+    m_slist = nl;
+    return true;
+}
 
-public:
-    curl_slist* list;
-};
+bool Slist::append(const std::string& str) {
+    return append(str.c_str());
+}
 
 } // namespace curl
-
-#endif

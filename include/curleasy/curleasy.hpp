@@ -3,10 +3,9 @@
 
 #include "curl/curl.h"
 
+#include "slist.hpp"
+
 #include <string>
-#if __cplusplus > 201703L
-#include <string_view>
-#endif
 
 /*
 ** curl::Easy++
@@ -33,12 +32,12 @@ public:
         return curl_easy_setopt(handle, option, v);
     }
 
-    // perform by supplying url
-#if __cplusplus >= 201703L
-    CURLcode perform_url(std::string_view url);
-#else
+    inline CURLcode set_slist_opt(CURLoption option, Slist& slist) {
+        return curl_easy_setopt(handle, option, slist.get());
+    }
+
+    CURLcode perform_url(const char* url);
     CURLcode perform_url(const std::string& url);
-#endif
 
     // perform with a previously supplied url (via setopt or perform_url)
     // override this to make preparations before actually doing the work

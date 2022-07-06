@@ -8,17 +8,16 @@ namespace detail {
 #if __cplusplus >= 201402L
     using std::exchange;
 #else
-template<class T, class U = T>
-T exchange(T& obj, U&& new_value)
-{
-    T old_value = std::move(obj);
-    obj = std::forward<U>(new_value);
-    return old_value;
-}
+    template<class T, class U = T>
+    T exchange(T& obj, U&& new_value) {
+        T old_value = std::move(obj);
+        obj = std::forward<U>(new_value);
+        return old_value;
+    }
 #endif
 
-}  // namespace detail
-}  // namespace curl
+} // namespace detail
+} // namespace curl
 
 namespace curl {
 // default constructor
@@ -60,7 +59,8 @@ Easy::Easy(const Easy& other) : handle(curl_easy_duphandle(other.handle)) {
     // therefor also not copied.
 }
 // move constructor
-Easy::Easy(Easy&& other) noexcept : handle(detail::exchange(other.handle, nullptr)) {}
+Easy::Easy(Easy&& other) noexcept :
+    handle(detail::exchange(other.handle, nullptr)) {}
 // copy assignment
 Easy& Easy::operator=(const Easy& other) {
     CURL* tmp_handle = curl_easy_duphandle(other.handle);
@@ -89,17 +89,13 @@ Easy::operator CURL*() {
 }
 
 // perform by supplying url
-#if __cplusplus >= 201703L
-CURLcode Easy::perform_url(std::string_view url) {
-    setopt(CURLOPT_URL, url.data());
+CURLcode Easy::perform_url(const char* url) {
+    setopt(CURLOPT_URL, url);
     return perform();
 }
-#else
 CURLcode Easy::perform_url(const std::string& url) {
-    setopt(CURLOPT_URL, url.c_str());
-    return perform();
+    return perform_url(url.c_str());
 }
-#endif
 
 // perform with a previously supplied url
 // override this to make preparations before actually doing the work
@@ -125,15 +121,19 @@ int Easy::on_progress(curl_off_t /*dltotal*/, curl_off_t /*dlnow*/,
 class Easy::GlobalInit {
 public:
     GlobalInit() noexcept :
-        initialized(curl_global_init(CURL_GLOBAL_DEFAULT)==0U)
-    {}
+        initialized(curl_global_init(CURL_GLOBAL_DEFAULT) == 0U) {}
     GlobalInit(const GlobalInit&) = delete;
     GlobalInit(GlobalInit&&) = delete;
     GlobalInit& operator=(const GlobalInit&) = delete;
     GlobalInit& operator=(GlobalInit&&) = delete;
-    ~GlobalInit() { if(initialized) { curl_global_cleanup(); } }
+    ~GlobalInit() {
+        if(initialized) {
+            curl_global_cleanup();
+        }
+    }
 
-    explicit operator bool () const { return initialized; }
+    explicit operator bool() const { return initialized; }
+
 private:
     bool initialized;
 };

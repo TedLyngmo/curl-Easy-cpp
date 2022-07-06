@@ -20,9 +20,8 @@ This will create the directories `include/curleasy` and `lib` under the path you
 ```
 
 
-# Interface
+# Interface - in `namespace curl`
 ```cpp
-namespace curl {
 class Easy {
 public:
     Easy();
@@ -38,13 +37,12 @@ public:
 
     // A generic curl_easy_setopt wrapper
     template<typename T>
-    inline CURLcode setopt(CURLoption option, T v) {
-        return curl_easy_setopt(handle, option, v);
-    }
+    inline CURLcode setopt(CURLoption option, T v);
 
-    // perform by supplying url
-    CURLcode perform_url(std::string_view url);    // >= C++17
-    CURLcode perform_url(const std::string& url);  // < C++17
+    inline CURLcode set_slist_opt(CURLoption option, Slist& slist);
+
+    CURLcode perform_url(const char* url);
+    CURLcode perform_url(const std::string& url);
 
     // perform with a previously supplied url (via setopt or perform_url)
     // override this to make preparations before actually doing the work
@@ -53,10 +51,39 @@ public:
     // event handlers - override these to capture data etc.
     virtual size_t on_write(char* ptr, size_t total_size);
     virtual int on_debug(curl_infotype type, char* data, size_t size);
-    virtual int on_progress(curl_off_t dltotal, curl_off_t dlnow,
-                            curl_off_t ultotal, curl_off_t ulnow);
+    virtual int on_progress(curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow);
 };
-}  // namespace curl
+```
+```cpp
+class Slist {
+public:
+    Slist() = default;
+    Slist(const Slist&) = delete;
+    Slist(Slist&&) noexcept;
+    Slist& operator=(const Slist&) = delete;
+    Slist& operator=(Slist&&) noexcept;
+    ~Slist() noexcept;
+
+    template<class Iter>
+    Slist(Iter first, Iter last);
+
+    template<class T>
+    Slist(std::initializer_list<T> il);
+
+    bool append(const char* s);
+    // string_views are tricky since we can't expect them to be null terminated and
+    // they can also be substrings of other strings, so they need to be converted to
+    // string first.
+    bool append(const std::string&);
+
+    template<class Iter>
+    bool append(Iter first, Iter last);
+
+    template<class T>
+    bool append(std::initializer_list<T> il);
+
+    struct curl_slist* get();
+};
 ```
 
 # Example
